@@ -31,7 +31,15 @@ func NewLimiter(client *redis.Client, limit int, window time.Duration) *Limiter 
 	}
 }
 
-func (l *Limiter) Allow(ctx context.Context, identifier string) (bool, error) {
+// RateLimitResult contains the status of the rate limit check
+type RateLimitResult struct {
+	Allowed   bool
+	Limit     int
+	Remaining int
+	Reset     int64 // Unix timestamp in milliseconds
+}
+
+func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResult, error) {
 	// 1. Create a unique key for the user in Redis
 	key := "ratelimit:" + identifier
 
@@ -41,13 +49,23 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (bool, error) {
 	maxLimit := l.limit
 
 	// 3. Run the script!
-	// .Run() handles the "SHA-1 optimization" for you.
-	// It sends the SHA hash; if Redis doesn't have it, it sends the full script.
-	result, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit).Int()
+	// Returns: [allowed, limit, remaining, reset]
+	result, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit).Slice()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	// 4. Return true if Lua returned 1, false if 0
-	return result == 1, nil
+	// 4. Parse the result
+	// Note: go-redis returns Lua numbers as int64
+	allowedInt, _ := result[0].(int64)
+	limitInt, _ := result[1].(int64)
+	remainingInt, _ := result[2].(int64)
+	resetInt, _ := result[3].(int64)
+
+	return &RateLimitResult{
+		Allowed:   allowedInt == 1,
+		Limit:     int(limitInt),
+		Remaining: int(remainingInt),
+		Reset:     resetInt,
+	}, nil
 }

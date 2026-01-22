@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Franken14/rate-limiter/internal/limiter"
@@ -32,13 +33,17 @@ func main() {
 			ip = host
 		}
 
-		allowed, err := l.Allow(ctx, ip)
+		result, err := l.Allow(ctx, ip)
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		if !allowed {
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.Reset/1000, 10))
+
+		if !result.Allowed {
 			w.WriteHeader(http.StatusTooManyRequests)
 			fmt.Fprint(w, "Rate limit exceeded. Try again later.")
 			return
