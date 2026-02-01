@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -13,12 +14,17 @@ import (
 )
 
 func main() {
+	addr := "localhost:6379"
+	if envAddr := os.Getenv("REDIS_ADDR"); envAddr != "" {
+		addr = envAddr
+	}
+
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: addr,
 	})
 
-	// We allow 5 requests every 10 seconds for limiter
-	l := limiter.NewLimiter(rdb, 5, 10*time.Second)
+	// We allow 5 requests every 10 seconds for limiter. Fallback: 5 req/sec.
+	l := limiter.NewLimiter(rdb, 5, 10*time.Second, 5)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

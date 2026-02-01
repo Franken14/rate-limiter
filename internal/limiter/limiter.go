@@ -3,6 +3,7 @@ package limiter
 import (
 	"context"
 	_ "embed"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -13,21 +14,64 @@ var luaScript string
 
 // Limiter represents a sliding window rate limiter using Redis
 type Limiter struct {
-	client *redis.Client
-	script *redis.Script // New field
-	limit  int
-	window time.Duration
+	client        *redis.Client
+	script        *redis.Script
+	limit         int
+	window        time.Duration
+	fallbackLimit int
+	tokenBucket   *TokenBucket
 }
 
-func NewLimiter(client *redis.Client, limit int, window time.Duration) *Limiter {
+// TokenBucket is a thread-safe token bucket for fail-open logic
+type TokenBucket struct {
+	mu         sync.Mutex
+	capacity   int
+	tokens     float64
+	rate       float64 // tokens per second
+	lastRefill time.Time
+}
+
+func NewTokenBucket(rate int, capacity int) *TokenBucket {
+	return &TokenBucket{
+		capacity:   capacity,
+		tokens:     float64(capacity),
+		rate:       float64(rate),
+		lastRefill: time.Now(),
+	}
+}
+
+func (tb *TokenBucket) Allow() bool {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(tb.lastRefill).Seconds()
+	tb.lastRefill = now
+
+	// Refill tokens
+	tb.tokens += elapsed * tb.rate
+	if tb.tokens > float64(tb.capacity) {
+		tb.tokens = float64(tb.capacity)
+	}
+
+	if tb.tokens >= 1.0 {
+		tb.tokens--
+		return true
+	}
+	return false
+}
+
+func NewLimiter(client *redis.Client, limit int, window time.Duration, fallbackLimit int) *Limiter {
 	// Pre-load the script into a Go-Redis script object
 	redisScript := redis.NewScript(luaScript)
 
 	return &Limiter{
-		client: client,
-		script: redisScript,
-		limit:  limit,
-		window: window,
+		client:        client,
+		script:        redisScript,
+		limit:         limit,
+		window:        window,
+		fallbackLimit: fallbackLimit,
+		tokenBucket:   NewTokenBucket(fallbackLimit, fallbackLimit), // burst = rate for simplicity
 	}
 }
 
@@ -52,7 +96,24 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResul
 	// Returns: [allowed, limit, remaining, reset]
 	result, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit).Slice()
 	if err != nil {
-		return nil, err
+		// Log the error if needed, but fail open
+		// Ideally log failure safely
+
+		// Fallback to Token Bucket
+		allowed := l.tokenBucket.Allow()
+
+		// Approximate result for fallback
+		remaining := 0
+		if allowed {
+			remaining = 1 // At least one left? Or just hide it.
+		}
+
+		return &RateLimitResult{
+			Allowed:   allowed,
+			Limit:     l.fallbackLimit,
+			Remaining: remaining,
+			Reset:     0, // Unknown
+		}, nil
 	}
 
 	// 4. Parse the result

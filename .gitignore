@@ -1,0 +1,16 @@
+# Binaries
+api
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Mac
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Go
+monitor_redis_failure.py
