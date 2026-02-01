@@ -35,9 +35,19 @@ The system uses a sliding window log to track requests. This offers higher preci
 2. **Configuration**:
    - The application connects to Redis at `localhost:6379` by default.
    - Set the `REDIS_ADDR` environment variable to override the address (e.g., `export REDIS_ADDR=localhost:6379`).
-3. **Run**:
-   ```bash
-   go mod download
    go build -o api cmd/api/main.go
    ./api
    ```
+
+## 🐳 Docker Quickstart (Recommended)
+You can spin up the entire stack (API + Redis) with a single command:
+```bash
+docker-compose up --build
+```
+This ensures a consistent environment and automatic connection to the Redis container.
+
+## Configuration
+- **REDIS_ADDR**: Defaults to `localhost:6379`. In Docker, it's set to `redis:6379`.
+- **RATE_LIMIT**: Max requests (default: 5).
+- **RATE_LIMIT_WINDOW_SEC**: Window size in seconds (default: 10).
+- **RATE_LIMIT_BURST**: Burst capacity for fail-open fallback (default: 5).

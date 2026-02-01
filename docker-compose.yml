@@ -1,0 +1,19 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - RATE_LIMIT=10
+      - RATE_LIMIT_WINDOW_SEC=10
+      - RATE_LIMIT_BURST=10
+    depends_on:
+      - redis
+    restart: on-failure

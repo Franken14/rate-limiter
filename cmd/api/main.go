@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/Franken14/rate-limiter/internal/limiter"
@@ -23,7 +24,11 @@ func main() {
 	})
 
 	// We allow 5 requests every 10 seconds for limiter. Fallback: 5 req/sec.
-	l := limiter.NewLimiter(rdb, 5, 10*time.Second, 5)
+	limit := getEnvAsInt("RATE_LIMIT", 5)
+	windowSec := getEnvAsInt("RATE_LIMIT_WINDOW_SEC", 10)
+	burst := getEnvAsInt("RATE_LIMIT_BURST", 5)
+
+	l := limiter.NewLimiter(rdb, limit, time.Duration(windowSec)*time.Second, burst)
 
 	// Create the rate limit middleware
 	rateLimiterMiddleware := middleware.RateLimit(l)
@@ -38,4 +43,13 @@ func main() {
 
 	fmt.Println("Server starting on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func getEnvAsInt(key string, defaultVal int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultVal
 }

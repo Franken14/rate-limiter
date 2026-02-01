@@ -3,6 +3,7 @@ package limiter
 import (
 	"context"
 	_ "embed"
+	"strconv"
 	"sync"
 	"time"
 
@@ -93,8 +94,15 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResul
 	maxLimit := l.limit
 
 	// 3. Run the script!
+	// Generate a unique member logic to prevent overwrites within the same ms
+	// We use the full nanosecond timestamp + random suffix or just the pointer address if safe?
+	// Easiest is just RandomInt or UUID-like.
+	// Since we don't have a UUID lib, we can use now + pseudo-random.
+	// But `now` is ms.
+	member := strconv.FormatInt(now, 10) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
 	// Returns: [allowed, limit, remaining, reset]
-	result, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit).Slice()
+	result, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit, member).Slice()
 	if err != nil {
 		// Log the error if needed, but fail open
 		// Ideally log failure safely

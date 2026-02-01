@@ -25,7 +25,8 @@ else
 end
 
 if current_usage < limit then
-    redis.call('ZADD', key, now, now)
+    local member = ARGV[4]
+    redis.call('ZADD', key, now, member)
     redis.call('EXPIRE', key, window)
     
     remaining = remaining - 1
