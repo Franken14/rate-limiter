@@ -10,6 +10,7 @@ import (
 
 	"github.com/Franken14/rate-limiter/internal/limiter"
 	"github.com/Franken14/rate-limiter/internal/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -40,6 +41,9 @@ func main() {
 
 	// Wrap the handler with the middleware
 	http.Handle("/", rateLimiterMiddleware(finalHandler))
+
+	// Prometheus Metrics Endpoint
+	http.Handle("/metrics", promhttp.Handler())
 
 	fmt.Println("Server starting on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
