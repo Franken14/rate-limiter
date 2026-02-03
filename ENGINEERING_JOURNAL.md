@@ -115,3 +115,22 @@ I worried that my robust but complex logic (Middleware -> Gobreaker -> Redis -> 
 I ran a stress test with 100 concurrent workers against the local API.
 *   **Result**: 32,300+ requests per second.
 *   **Optimization**: This confirmed that my decision to use **Connection Pooling** (via `go-redis`) and **Lua Scripts** (reducing network round-trips) was correct. The bottleneck was likely the Docker network bridge, not the code itself.
+
+---
+
+## 🔄 10. Migration: From Sliding Window to Token Bucket
+### The Scaling Wall
+During a stress test with a simulated limit of 100,000 requests/minute, I observed infinite memory growth.
+*   **Observation**: The Sliding Window Log implementation stores a timestamp for *every* request in the window.
+*   **Impact**: For 100k requests, Redis stored ~16MB of data per user. This is unsustainable for a production system.
+
+### The Pivot
+I decided to migrate to the **Token Bucket** algorithm.
+*   **Why**: Token Bucket only stores 2 integers (`tokens` and `last_refill`), regardless of how many requests are allowed.
+*   **Result**: 
+    -   Memory usage dropped from **16MB** to **~2MB** (base Redis overhead) per user key.
+    -   Space complexity improved from **O(N)** to **O(1)**.
+    -   Throughput improved slightly (+7%).
+
+### The Tradeoff Revisit
+In Section 2, I originally chose Sliding Window for "Action precision". I have now prioritized "Scalability" over strict millisecond-level window boundaries. The Token Bucket is "good enough" for almost all rate limiting use cases and prevents the system from crashing under load.

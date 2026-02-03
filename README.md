@@ -1,44 +1,43 @@
-# 🛡️ Distributed Rate Limiter
+# Distributed Rate Limiter
 > *A high-precision, distributed rate limiting service capable of handling **32,000+ RPS** with <9ms latency.*
 
 [![Go](https://img.shields.io/badge/Language-Go-blue.svg)](https://golang.org/)
 [![Redis](https://img.shields.io/badge/Database-Redis-red.svg)](https://redis.io/)
 [![Prometheus](https://img.shields.io/badge/Observability-Prometheus-orange.svg)](https://prometheus.io/)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)]()
 
-## 📖 Overview
-Building a rate limiter for a single server is easy. Building one that works accurately across a distributed cluster—while surviving network partitions and cascading failures—is a different beast.
+## Overview
+Building a rate limiter for a single server is straightforward. Building one that works accurately across a distributed cluster—while surviving network partitions and cascading failures—is a different challenge.
 
-This project implements a **Distributed Sliding Window Log** algorithm using Redis. It is engineered with a "Fail-Open" philosophy, ensuring that your API never goes down just because the rate limiter service is unreachable.
+I implemented this **Distributed Token Bucket** algorithm using Redis to ensure scalability and reliability. I designed it with a "Fail-Open" philosophy, ensuring the API never goes down just because the rate limiter service is unreachable.
 
-## 🚀 Key Features
-*   **Precise Throttling**: Uses a Sliding Window Log (via Redis Sorted Sets) for perfect accuracy, avoiding the "double ripple" issues of fixed windows.
+## Key Features
+*   **Scalable Throttling**: I used the Token Bucket algorithm (via Redis Hashes) to achieve O(1) memory and time complexity, regardless of the limit size.
 *   **Operational Resilience**:
-    *   **Circuit Breaker**: Detects Redis outages/latency spikes and "trips" instantly to protect the system.
+    *   **Circuit Breaker**: Detects Redis outages or latency spikes and "trips" instantly to protect the system.
     *   **Fail-Open Fallback**: Gracefully degrades to a local in-memory Token Bucket when Redis is unavailable.
 *   **Observability**: Fully instrumented with Prometheus metrics (`requests_total`, `latency`) to visualize system health in real-time.
 *   **Concurrency Safe**: Lua scripting ensures **atomicity** for all Check-Then-Act operations, preventing race conditions under high load.
 
-## 🏗️ Architecture
+## Architecture
 The system consists of a Go middleware layer that intercepts requests and coordinates with a centralized Redis cluster.
 
 | Component | Responsibility | Performance |
 |-----------|----------------|-------------|
 | **Middleware** | Intercepts requests, coordinates context/timeouts | <1ms overhead |
-| **Circuit Breaker** | Moniters Redis health; trips on 3 failures | - |
-| **Redis (Lua)** | Executes atomic sliding window logic | O(log N) |
+| **Circuit Breaker** | Monitors Redis health; trips on 3 failures | - |
+| **Redis (Lua)** | Executes atomic token bucket logic | O(1) |
 | **Fallback** | Local memory token bucket (when Redis is down) | O(1) |
 
-> **Performance**: In local stress tests, this system handled **32,300 req/sec** with p99 latency of 9ms.
+> **Performance**: In my local stress tests, this system handled **32,300 req/sec** with p99 latency of 9ms.
 
-## 🛠️ Required Reading (Engineering Depth)
-Each of these documents was written to demonstrate the engineering rigor behind the project:
+## Required Reading (Engineering Depth)
+I wrote these documents to demonstrate the engineering rigor behind the project:
 
 - [**Project Deep Dive**](./PROJECT_DEEP_DIVE.md): Detailed explanation of the Algorithm, Architecture, and "Why" behind every decision. Includes Performance Benchmarks.
-- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs made (e.g., Consistency vs Availability) and alternatives rejected (Gossip protocol, Postgres).
-- [**Challenges in Code**](./CHALLENGES_IN_CODE.md): Specific "War Stories" about bugs encountered (Race conditions, Shared State testing) and how they were solved.
+- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs I made (e.g., Consistency vs Availability) and alternatives I rejected (Gossip protocol, Postgres).
+- [**Challenges in Code**](./CHALLENGES_IN_CODE.md): Specific "War Stories" about bugs I encountered (Race conditions, Shared State testing) and how I solved them.
 
-## 🚦 Getting Started
+## Getting Started
 The easiest way to run the service is with Docker Compose.
 
 ### Quick Start
@@ -69,7 +68,7 @@ Visit [http://localhost:8080/metrics](http://localhost:8080/metrics) to see Prom
 rate_limit_requests_total{mechanism="redis",status="allowed"} 1
 ```
 
-## ⚙️ Configuration
+## Configuration
 Environment variables control the behavior:
 
 | Variable | Default | Description |
@@ -79,7 +78,7 @@ Environment variables control the behavior:
 | `RATE_LIMIT_WINDOW_SEC` | `10` | Frequency window size (seconds) |
 | `RATE_LIMIT_BURST` | `5` | Fallback bucket capacity |
 
-## 🧪 Testing & Verification
+## Testing & Verification
 ### Unit Tests
 ```bash
 go test ./...
@@ -93,5 +92,5 @@ go run cmd/api/main.go &
 hey -n 20000 -c 100 http://localhost:8080/
 ```
 
-## 📜 License
+## License
 MIT

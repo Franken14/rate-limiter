@@ -3,7 +3,6 @@ package limiter
 import (
 	"context"
 	_ "embed"
-	"strconv"
 	"sync"
 	"time"
 
@@ -33,12 +32,12 @@ var (
 	)
 )
 
-// Limiter represents a sliding window rate limiter using Redis
+// Limiter represents a token bucket rate limiter using Redis
 type Limiter struct {
 	client        *redis.Client
 	script        *redis.Script
-	limit         int
-	window        time.Duration
+	rate          float64
+	capacity      int
 	fallbackLimit int
 	tokenBucket   *TokenBucket
 	cb            *gobreaker.CircuitBreaker
@@ -54,6 +53,7 @@ type TokenBucket struct {
 }
 
 func NewTokenBucket(rate int, capacity int) *TokenBucket {
+	// For fallback, we assume rate is per second if derived from simple check
 	return &TokenBucket{
 		capacity:   capacity,
 		tokens:     float64(capacity),
@@ -87,6 +87,12 @@ func NewLimiter(client *redis.Client, limit int, window time.Duration, fallbackL
 	// Pre-load the script into a Go-Redis script object
 	redisScript := redis.NewScript(luaScript)
 
+	// Calculate rate (tokens/sec) and capacity (burst)
+	// If window is 1s, rate = limit.
+	// If window is 60s, rate = limit / 60.
+	rate := float64(limit) / window.Seconds()
+	capacity := limit
+
 	// Circuit Breaker Settings
 	st := gobreaker.Settings{
 		Name:        "RedisLimiter",
@@ -102,10 +108,10 @@ func NewLimiter(client *redis.Client, limit int, window time.Duration, fallbackL
 	return &Limiter{
 		client:        client,
 		script:        redisScript,
-		limit:         limit,
-		window:        window,
+		rate:          rate,
+		capacity:      capacity,
 		fallbackLimit: fallbackLimit,
-		tokenBucket:   NewTokenBucket(fallbackLimit, fallbackLimit), // burst = rate for simplicity
+		tokenBucket:   NewTokenBucket(fallbackLimit, fallbackLimit),
 		cb:            gobreaker.NewCircuitBreaker(st),
 	}
 }
@@ -115,7 +121,7 @@ type RateLimitResult struct {
 	Allowed   bool
 	Limit     int
 	Remaining int
-	Reset     int64 // Unix timestamp in milliseconds
+	Reset     int64 // Seconds until full refill
 }
 
 func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResult, error) {
@@ -128,18 +134,14 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResul
 	key := "ratelimit:" + identifier
 
 	// 2. Prepare the arguments for Lua
-	now := time.Now().UnixNano() / int64(time.Millisecond) // Current time in ms
-	windowMS := l.window.Milliseconds()                    // Window in ms
-	maxLimit := l.limit
-
-	// Generate a unique member ID for the Sorted Set
-	member := strconv.FormatInt(now, 10) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	now := time.Now().UnixMicro() // Current time in microseconds
 
 	// 3. Define the critical operation for Circuit Breaker
 	operation := func() (interface{}, error) {
 		// Run the script
-		// Returns: [allowed, limit, remaining, reset]
-		res, err := l.script.Run(ctx, l.client, []string{key}, now, windowMS, maxLimit, member).Slice()
+		// ARGV: [now, rate, capacity, requested]
+		// Returns: [allowed, capacity, remaining, reset]
+		res, err := l.script.Run(ctx, l.client, []string{key}, now, l.rate, l.capacity, 1).Slice()
 		if err != nil {
 			return nil, err
 		}

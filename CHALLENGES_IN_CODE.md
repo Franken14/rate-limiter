@@ -90,8 +90,9 @@ I realized: If a user has a limit of 1,000,000 requests/hour, I am storing 1 mil
 `1M * 20 bytes ≈ 20MB` per user. 
 For 1000 users, that's 20GB of RAM!
 
-### The "Fix" (Tradeoff)
-I didn't "fix" it in code, but I documented the **Tradeoff**.
-*   For low-limit APIs (e.g., failed login attempts, strict payment limits), this algorithm is perfect.
-*   For high-volume APIs (DDoS protection), I noted that I would switch to **Fixed Window** or **Token Bucket** (O(1) memory) despite their lower precision.
-**Lesson**: There is no "perfect" algorithm. Engineering is about choosing the right tradeoff for the specific use case.
+### The Fix (Migration)
+I actually **migrated to the Token Bucket algorithm**.
+*   **Old Way**: Sliding Window Log (O(N) memory).
+*   **New Way**: Token Bucket (O(1) memory).
+*   **Result**: Reduced memory usage from 16MB/user (at 100k limit) to ~2KB/user.
+**Lesson**: Scalability often trumps partial-second precision. I prioritized keeping the system alive over strictly enforcing the exact window boundary.

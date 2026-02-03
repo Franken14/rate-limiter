@@ -11,17 +11,18 @@ Rate limiting in a **distributed system** is hard because multiple application i
 
 **Solution**: Use a centralized store (**Redis**) to keep the counts synchronized across all servers.
 
-### 2. The Algorithm: Sliding Window Log
-You implemented the **Sliding Window Log** algorithm (using Redis Sorted Sets).
-*   **Why?** It's more accurate than a "Fixed Window" (which allows 2x limit at window boundaries).
+### 2. The Algorithm: Token Bucket
+You implemented the **Token Bucket** algorithm (using Redis Hashes).
+*   **Why?** It is O(1) space efficient and handles high throughput without memory explosion.
 *   **How?**
-    *   Redis `Sorted Set` stores every request timestamp.
-    *   **Score**: Timestamp (Unix milliseconds).
-    *   **Value**: Unique identifier (or just timestamp if uniqueness isn't strict, your code uses timestamp).
+    *   Redis `Hash` stores the bucket state.
+    *   **Fields**: `tokens` (current capacity), `last_refill` (timestamp).
     *   **Logic**:
-        1.  Remove timestamps older than `now - window_size` (`ZREMRANGEBYSCORE`).
-        2.  Count remaining timestamps (`ZCARD`).
-        3.  If `count < limit`, add `now` (`ZADD`).
+        1.  Fetch `tokens` and `last_refill` (`HMGET`).
+        2.  Calculate tokens added since `last_refill` based on rate.
+        3.  Clamp tokens to `capacity` (burst limit).
+        4.  If `tokens >= 1`, decrement and allow (`HMSET`).
+        5.  Else, deny.
 
 ### 3. Middleware Pattern
 You refactored the logic into Go **Middleware**.
@@ -79,8 +80,8 @@ The script returns a 4-element array (Slice in Go): `[allowed, limit, remaining,
 ## 🎯 FAANG Interview Questions ( & Answers)
 
 ### System Design / Architecture
-1.  **"Why did you choose Sliding Window Log over Token Bucket for Redis?"**
-    *   **Answer**: "I wanted precision. Token Bucket is great for traffic shaping (bursts), but Sliding Window Log enforces a hard limit (e.g., exactly 5 requests in any 10s window). However, it uses O(N) memory per user (storing timestamps). For high-scale/DDoS protection, I might switch to Fixed Window or Token Bucket to save memory."
+1.  **"Why did you choose Token Bucket over Sliding Window Log?"**
+    *   **Answer**: "I actually started with Sliding Window Log for precision, but I hit a scalability wall. It required O(N) memory (storing every timestamp). For high-scale/DDoS protection (e.g., 100k requests/sec), this caused memory exhaustion. I switched to Token Bucket because it uses O(1) memory (just 2 counters) while still allowing bursts."
 
 2.  **"What happens if Redis is slow? Does it block the request?"**
     *   **Answer**: "Yes, Redis calls are synchronous. If Redis is slow, it adds latency. That's why I used `go-redis` with connection pooling. In a production system, I would add a strict timeout context to the `l.Allow()` call so we fail-open quickly if Redis hangs."
@@ -105,10 +106,9 @@ The script returns a 4-element array (Slice in Go): `[allowed, limit, remaining,
 
 8.  **"What is the time complexity of your Lua script?"**
     *   **Answer**:
-        *   `ZREMRANGEBYSCORE`: O(log(N) + M) where N is items in set, M is items removed.
-        *   `ZCARD`: O(1).
-        *   `ZADD`: O(log(N)).
-        *   Total: Efficient, but dependent on the number of requests *in the window* (N).
+        *   `HMGET` / `HMSET`: O(1).
+        *   Math operations: O(1).
+        *   Total: **O(1)**. It is independent of the number of requests or the window size.
 
 ### Operational Excellence
 9.  **"Why did you add a Circuit Breaker? Isn't a timeout enough?"**
