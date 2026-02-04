@@ -12,6 +12,7 @@ api
 *.md
 !README.md
 !CONTRIBUTING.md
+!ENGINEERING_JOURNAL.md
 
 # Python
 __pycache__/

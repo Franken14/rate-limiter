@@ -33,9 +33,7 @@ The system consists of a Go middleware layer that intercepts requests and coordi
 ## Required Reading (Engineering Depth)
 I wrote these documents to demonstrate the engineering rigor behind the project:
 
-- [**Project Deep Dive**](./PROJECT_DEEP_DIVE.md): Detailed explanation of the Algorithm, Architecture, and "Why" behind every decision. Includes Performance Benchmarks.
-- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs I made (e.g., Consistency vs Availability) and alternatives I rejected (Gossip protocol, Postgres).
-- [**Challenges in Code**](./CHALLENGES_IN_CODE.md): Specific "War Stories" about bugs I encountered (Race conditions, Shared State testing) and how I solved them.
+- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs I made (e.g., Consistency vs Availability), alternatives I rejected, and "War Stories" about bugs I encountered.
 
 ## Getting Started
 The easiest way to run the service is with Docker Compose.
