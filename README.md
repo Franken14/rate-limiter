@@ -31,9 +31,9 @@ The system consists of a Go middleware layer that intercepts requests and coordi
 > **Performance**: In my local stress tests, this system handled **32,300 req/sec** with p99 latency of 9ms.
 
 ## Required Reading (Engineering Depth)
-I wrote these documents to demonstrate the engineering rigor behind the project:
+I wrote these documents to track some of the choices, thoughts and considerations I had while building this system:
 
-- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs I made (e.g., Consistency vs Availability), alternatives I rejected, and "War Stories" about bugs I encountered.
+- [**Engineering Journal**](./ENGINEERING_JOURNAL.md): A chronicle of the trade-offs I made (e.g., Consistency vs Availability), alternatives I rejected, bugs I encountered, and some choices I made.
 
 ## Getting Started
 The easiest way to run the service is with Docker Compose.
