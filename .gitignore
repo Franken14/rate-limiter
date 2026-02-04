@@ -5,12 +5,10 @@ api
 *.so
 *.dylib
 
-# Mac
-.DS_Store
-
 # Editor
 .vscode/
 .idea/
 
-# Go
-monitor_redis_failure.py
+*.md
+!README.md
+
