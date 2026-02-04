@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Franken14/rate-limiter/internal/limiter"
@@ -15,14 +16,26 @@ import (
 )
 
 func main() {
-	addr := "localhost:6379"
-	if envAddr := os.Getenv("REDIS_ADDR"); envAddr != "" {
-		addr = envAddr
-	}
+	var rdb redis.UniversalClient
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: addr,
-	})
+	if clusterAddrs := os.Getenv("REDIS_CLUSTER_ADDRS"); clusterAddrs != "" {
+		// Redis Cluster
+		addrs := strings.Split(clusterAddrs, ",")
+		rdb = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs: addrs,
+		})
+		fmt.Println("Connected to Redis Cluster at:", addrs)
+	} else {
+		// Single Node
+		addr := "localhost:6379"
+		if envAddr := os.Getenv("REDIS_ADDR"); envAddr != "" {
+			addr = envAddr
+		}
+		rdb = redis.NewClient(&redis.Options{
+			Addr: addr,
+		})
+		fmt.Println("Connected to Single Redis at:", addr)
+	}
 
 	// We allow 5 requests every 10 seconds for limiter. Fallback: 5 req/sec.
 	limit := getEnvAsInt("RATE_LIMIT", 5)

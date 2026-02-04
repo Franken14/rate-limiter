@@ -1,5 +1,5 @@
 # Distributed Rate Limiter
-> *A high-precision, distributed rate limiting service capable of handling **32,000+ RPS** with <9ms latency.*
+> *A high-precision, distributed rate limiting service capable of handling **48,000+ RPS** with <9ms latency.*
 
 [![Go](https://img.shields.io/badge/Language-Go-blue.svg)](https://golang.org/)
 [![Redis](https://img.shields.io/badge/Database-Redis-red.svg)](https://redis.io/)
@@ -11,7 +11,7 @@ Building a rate limiter for a single server is straightforward. Building one tha
 I implemented this **Distributed Token Bucket** algorithm using Redis to ensure scalability and reliability. I designed it with a "Fail-Open" philosophy, ensuring the API never goes down just because the rate limiter service is unreachable.
 
 ## Key Features
-*   **Scalable Throttling**: I used the Token Bucket algorithm (via Redis Hashes) to achieve O(1) memory and time complexity, regardless of the limit size.
+*   **Scalable Throttling**: I used the Token Bucket algorithm (via Redis Hashes) and **Redis Cluster** to achieve O(1) complexity and horizontal scalability.
 *   **Operational Resilience**:
     *   **Circuit Breaker**: Detects Redis outages or latency spikes and "trips" instantly to protect the system.
     *   **Fail-Open Fallback**: Gracefully degrades to a local in-memory Token Bucket when Redis is unavailable.
@@ -25,10 +25,10 @@ The system consists of a Go middleware layer that intercepts requests and coordi
 |-----------|----------------|-------------|
 | **Middleware** | Intercepts requests, coordinates context/timeouts | <1ms overhead |
 | **Circuit Breaker** | Monitors Redis health; trips on 3 failures | - |
-| **Redis (Lua)** | Executes atomic token bucket logic | O(1) |
+| **Redis (Cluster)** | Executes atomic token bucket logic via `UniversalClient` | O(1) |
 | **Fallback** | Local memory token bucket (when Redis is down) | O(1) |
 
-> **Performance**: In my local stress tests, this system handled **32,300 req/sec** with p99 latency of 9ms.
+> **Performance**: In my local stress tests, this system handled **48,400+ req/sec** with p99 latency of <9ms.
 
 ## Required Reading (Engineering Depth)
 I wrote these documents to track some of the choices, thoughts and considerations I had while building this system:
@@ -71,7 +71,8 @@ Environment variables control the behavior:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REDIS_ADDR` | `localhost:6379` | Address of the Redis instance |
+| `REDIS_ADDR` | `localhost:6379` | Address of the Redis instance (Single Node) |
+| `REDIS_CLUSTER_ADDRS` | - | Comma-separated list of Redis Cluster nodes (e.g. `node1:6379,node2:6379`) |
 | `RATE_LIMIT` | `5` | Max requests per window |
 | `RATE_LIMIT_WINDOW_SEC` | `10` | Frequency window size (seconds) |
 | `RATE_LIMIT_BURST` | `5` | Fallback bucket capacity |

@@ -34,7 +34,7 @@ var (
 
 // Limiter represents a token bucket rate limiter using Redis
 type Limiter struct {
-	client        *redis.Client
+	client        redis.UniversalClient
 	script        *redis.Script
 	rate          float64
 	capacity      int
@@ -83,7 +83,7 @@ func (tb *TokenBucket) Allow() bool {
 	return false
 }
 
-func NewLimiter(client *redis.Client, limit int, window time.Duration, fallbackLimit int) *Limiter {
+func NewLimiter(client redis.UniversalClient, limit int, window time.Duration, fallbackLimit int) *Limiter {
 	// Pre-load the script into a Go-Redis script object
 	redisScript := redis.NewScript(luaScript)
 

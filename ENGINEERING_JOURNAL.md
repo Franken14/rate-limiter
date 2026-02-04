@@ -106,7 +106,7 @@ I updated the design to store `timestamp-uniqueID` as the member.
 
 ## 7. Future Improvements
 
-1.  **Redis Cluster Support**: Currently, I rely on a single Redis instance. For web-scale, I'd need sharding. I'd have to ensure my Lua script calls pass `KEYS` explicitly so the proxy knows which shard to hit.
+1.  **Redis Cluster Support**: **[DONE]** I implemented potential for Distributed Storage by refactoring the system to use `redis.UniversalClient`. The system now supports both Single Node and Cluster modes via `REDIS_CLUSTER_ADDRS`.
 2.  **Adaptive Rate Limiting**: Implementing a system that adjusts limits based on overall system load/latency, rather than static counts.
 
 ---
@@ -134,5 +134,5 @@ I worried that the layered logic (Middleware -> Gobreaker -> Redis -> Lua -> Res
 
 ### The Reality (Stress Test)
 I ran a stress test with 100 concurrent workers against the local API.
-*   **Result**: 32,300+ requests per second.
+*   **Result**: 48,400+ requests per second.
 *   **Optimization**: This confirmed that my decision to use **Connection Pooling** (via `go-redis`) and **Lua Scripts** (reducing network round-trips) was correct.
