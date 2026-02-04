@@ -11,4 +11,14 @@ api
 
 *.md
 !README.md
+!CONTRIBUTING.md
+
+# Python
+__pycache__/
+*.py[cod]
+
+# System
+.DS_Store
+Thumbs.db
+
 
