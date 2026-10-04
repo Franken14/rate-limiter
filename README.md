@@ -11,12 +11,12 @@ Building a rate limiter for a single server is straightforward. Building one tha
 I implemented this **Distributed Token Bucket** algorithm using Redis to ensure scalability and reliability. I designed it with a "Fail-Open" philosophy, ensuring the API never goes down just because the rate limiter service is unreachable.
 
 ## Key Features
-*   **Scalable Throttling**: I used the Token Bucket algorithm (via Redis Hashes) and **Redis Cluster** to achieve O(1) complexity and horizontal scalability.
-*   **Operational Resilience**:
+-   **Scalable Throttling**: I used the Token Bucket algorithm (via Redis Hashes) and **Redis Cluster** to achieve O(1) complexity and horizontal scalability.
+-   **Operational Resilience**:
     *   **Circuit Breaker**: Detects Redis outages or latency spikes and "trips" instantly to protect the system.
     *   **Fail-Open Fallback**: Gracefully degrades to a local in-memory Token Bucket when Redis is unavailable.
-*   **Observability**: Fully instrumented with Prometheus metrics (`requests_total`, `latency`) to visualize system health in real-time.
-*   **Concurrency Safe**: Lua scripting ensures **atomicity** for all Check-Then-Act operations, preventing race conditions under high load.
+-   **Observability**: Fully instrumented with Prometheus metrics (`requests_total`, `latency`) to visualize system health in real-time.
+-   **Concurrency Safe**: Lua scripting ensures **atomicity** for all Check-Then-Act operations, preventing race conditions under high load.
 
 ## Architecture
 
@@ -28,12 +28,13 @@ graph TD
     RC -->|Atomic Execution| Lua[Lua Token Bucket Script]
     CB -->|State: Open / Down| Fallback[In-Memory Fallback Bucket]
     API -.->|Telemetry| Prom[Prometheus Metrics]
+```
 
 > **Performance**: 
 The system was benchmarked locally handling 48,400+ requests per second while maintaining a p99 latency of strictly under 9ms.
 
-Load Test Output (hey -n 20000 -c 100):
-
+Load Test Output (`hey -n 20000 -c 100`):
+```text
 Summary:
   Total:        0.4132 secs
   Slowest:      0.0152 secs
@@ -46,6 +47,7 @@ Latency distribution:
   50% in 0.0032 secs
   95% in 0.0084 secs
   99% in 0.0089 secs
+```
 
 ## Required Reading (Engineering Depth)
 I wrote these documents to track some of the choices, thoughts and considerations I had while building this system:
@@ -58,7 +60,7 @@ The easiest way to run the service is with Docker Compose.
 ### Quick Start
 ```bash
 # 1. Clone the repo
-git clone https://github.com/Franken14/rate-limiter.git
+git clone [https://github.com/Franken14/rate-limiter.git](https://github.com/Franken14/rate-limiter.git)
 
 # 2. Start the stack (API + Redis)
 docker-compose up --build
