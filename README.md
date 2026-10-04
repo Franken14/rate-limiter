@@ -19,16 +19,33 @@ I implemented this **Distributed Token Bucket** algorithm using Redis to ensure 
 *   **Concurrency Safe**: Lua scripting ensures **atomicity** for all Check-Then-Act operations, preventing race conditions under high load.
 
 ## Architecture
-The system consists of a Go middleware layer that intercepts requests and coordinates with a centralized Redis cluster.
 
-| Component | Responsibility | Performance |
-|-----------|----------------|-------------|
-| **Middleware** | Intercepts requests, coordinates context/timeouts | <1ms overhead |
-| **Circuit Breaker** | Monitors Redis health; trips on 3 failures | - |
-| **Redis (Cluster)** | Executes atomic token bucket logic via `UniversalClient` | O(1) |
-| **Fallback** | Local memory token bucket (when Redis is down) | O(1) |
+```mermaid
+graph TD
+    Client[Client Request] --> API[Go API Gateway]
+    API --> CB{Circuit Breaker}
+    CB -->|State: Closed| RC[(Redis Cluster)]
+    RC -->|Atomic Execution| Lua[Lua Token Bucket Script]
+    CB -->|State: Open / Down| Fallback[In-Memory Fallback Bucket]
+    API -.->|Telemetry| Prom[Prometheus Metrics]
 
-> **Performance**: In my local stress tests, this system handled **48,400+ req/sec** with p99 latency of <9ms.
+> **Performance**: 
+The system was benchmarked locally handling 48,400+ requests per second while maintaining a p99 latency of strictly under 9ms.
+
+Load Test Output (hey -n 20000 -c 100):
+
+Summary:
+  Total:        0.4132 secs
+  Slowest:      0.0152 secs
+  Fastest:      0.0001 secs
+  Average:      0.0041 secs
+  Requests/sec: 48402.13
+
+Latency distribution:
+  10% in 0.0011 secs
+  50% in 0.0032 secs
+  95% in 0.0084 secs
+  99% in 0.0089 secs
 
 ## Required Reading (Engineering Depth)
 I wrote these documents to track some of the choices, thoughts and considerations I had while building this system:
