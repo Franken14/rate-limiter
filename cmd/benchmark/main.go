@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Franken14/rate-limiter/internal/limiter"
+	"github.com/Franken14/rate-limiter/pkg/limiter"
 	"github.com/redis/go-redis/v9"
 )
 

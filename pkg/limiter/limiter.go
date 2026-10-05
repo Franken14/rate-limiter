@@ -38,9 +38,9 @@ type Limiter struct {
 	script        *redis.Script
 	rate          float64
 	capacity      int
-	fallbackLimit int
-	tokenBucket   *TokenBucket
-	cb            *gobreaker.CircuitBreaker
+	fallbackLimit   int
+	fallbackBuckets sync.Map
+	cb              *gobreaker.CircuitBreaker
 }
 
 // TokenBucket is a thread-safe token bucket for fail-open logic
@@ -111,7 +111,6 @@ func NewLimiter(client redis.UniversalClient, limit int, window time.Duration, f
 		rate:          rate,
 		capacity:      capacity,
 		fallbackLimit: fallbackLimit,
-		tokenBucket:   NewTokenBucket(fallbackLimit, fallbackLimit),
 		cb:            gobreaker.NewCircuitBreaker(st),
 	}
 }
@@ -125,28 +124,29 @@ type RateLimitResult struct {
 }
 
 func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResult, error) {
+	return l.allow(ctx, identifier, l.rate, l.capacity, l.fallbackLimit)
+}
+
+func (l *Limiter) AllowDynamic(ctx context.Context, identifier string, limit int, window time.Duration) (*RateLimitResult, error) {
+	rate := float64(limit) / window.Seconds()
+	return l.allow(ctx, identifier, rate, limit, limit) // Use the dynamic limit as fallback limit too
+}
+
+func (l *Limiter) allow(ctx context.Context, identifier string, rate float64, capacity int, fallbackLimit int) (*RateLimitResult, error) {
 	start := time.Now()
 	defer func() {
 		requestLatency.Observe(time.Since(start).Seconds())
 	}()
 
-	// 1. Create a unique key for the user in Redis
 	key := "ratelimit:" + identifier
+	now := time.Now().UnixMicro()
 
-	// 2. Prepare the arguments for Lua
-	now := time.Now().UnixMicro() // Current time in microseconds
-
-	// 3. Define the critical operation for Circuit Breaker
 	operation := func() (interface{}, error) {
-		// Run the script
-		// ARGV: [now, rate, capacity, requested]
-		// Returns: [allowed, capacity, remaining, reset]
-		res, err := l.script.Run(ctx, l.client, []string{key}, now, l.rate, l.capacity, 1).Slice()
+		res, err := l.script.Run(ctx, l.client, []string{key}, now, rate, capacity, 1).Slice()
 		if err != nil {
 			return nil, err
 		}
 
-		// Parse the result
 		allowedInt, _ := res[0].(int64)
 		limitInt, _ := res[1].(int64)
 		remainingInt, _ := res[2].(int64)
@@ -160,22 +160,19 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResul
 		}, nil
 	}
 
-	// 4. Execute via Circuit Breaker
 	result, err := l.cb.Execute(operation)
 
 	if err != nil {
-		// Circuit Breaker is Open OR Redis failed
-		// Fallback to Token Bucket
-		allowed := l.tokenBucket.Allow()
+		bucketIface, _ := l.fallbackBuckets.LoadOrStore(identifier, NewTokenBucket(fallbackLimit, fallbackLimit))
+		bucket := bucketIface.(*TokenBucket)
+		allowed := bucket.Allow()
 
-		// Record metric for fallback
 		status := "blocked"
 		if allowed {
 			status = "allowed"
 		}
 		requestsTotal.WithLabelValues(status, "fallback").Inc()
 
-		// Approximate result for fallback
 		remaining := 0
 		if allowed {
 			remaining = 1
@@ -183,16 +180,14 @@ func (l *Limiter) Allow(ctx context.Context, identifier string) (*RateLimitResul
 
 		return &RateLimitResult{
 			Allowed:   allowed,
-			Limit:     l.fallbackLimit,
+			Limit:     fallbackLimit,
 			Remaining: remaining,
-			Reset:     0, // Unknown
+			Reset:     0,
 		}, nil
 	}
 
-	// 5. Success
 	rateResult := result.(*RateLimitResult)
 
-	// Record metric for Redis success
 	status := "blocked"
 	if rateResult.Allowed {
 		status = "allowed"

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Franken14/rate-limiter/internal/limiter"
-	"github.com/Franken14/rate-limiter/internal/middleware"
+	"github.com/Franken14/rate-limiter/pkg/limiter"
+	"github.com/Franken14/rate-limiter/pkg/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
