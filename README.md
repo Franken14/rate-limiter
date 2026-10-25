@@ -60,7 +60,7 @@ The easiest way to run the service is with Docker Compose.
 ### Quick Start
 ```bash
 # 1. Clone the repo
-git clone [https://github.com/Franken14/rate-limiter.git](https://github.com/Franken14/rate-limiter.git)
+git clone https://github.com/Franken14/rate-limiter.git
 
 # 2. Start the stack (API + Redis)
 docker-compose up --build
